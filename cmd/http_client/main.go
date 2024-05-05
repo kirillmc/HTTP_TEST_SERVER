@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"http_test_server/internal/model"
+	"github.com/kirillmc/http_test_server/internal/model"
 )
 
 const (
@@ -20,7 +20,7 @@ const (
 func getNProgramsClient(n int64) (model.TrainPrograms, error) {
 	resp, err := http.Get(fmt.Sprintf(newBaseUrl+getPostfix, n))
 	if err != nil {
-		log.Fatal("Failed to get program:", err)
+		log.Fatal("Failed to get programs:", err)
 	}
 	defer resp.Body.Close()
 
@@ -42,13 +42,20 @@ func getNProgramsClient(n int64) (model.TrainPrograms, error) {
 
 func main() {
 	start := time.Now()
-	_, err := getNProgramsClient(55)
+	var n int64 = 1
+	programs, err := getNProgramsClient(n)
 	if err != nil {
 		log.Println("ERROR")
 	}
 
 	end := time.Now()
-	log.Printf("TOTAL TIME TO GET PROGRAMS\n: %v\n", end.Sub(start))
+	numOfSets, err := json.Marshal(programs)
+	if err != nil {
+		fmt.Errorf("fail to get json: %v", err)
+	}
+	log.Printf("|\t\t\tHTTP INFO: SIZE[%d]\t\t\t|\n", n)
+	log.Printf("|\tTOTAL TIME TO GET PROGRAMS:\t%v\t\t|\n", end.Sub(start))
+	log.Printf("|\tSIZE OF PROGRAMS:\t\t%s\t|\n", getSizeInFormattedString(int64(len(numOfSets))))
 	//start := time.Now()
 	//var user UserToGet
 	//var err error
@@ -96,4 +103,15 @@ func main() {
 	//log.Printf("total requests time: %v\n", total)
 	//log.Printf("time for %d get requests: %v\n", n, end.Sub(start))
 	//log.Printf("avg time for %d get requests: %s\n", n, time.Duration(avg))
+}
+
+func getSizeInFormattedString(byteSize int64) string {
+	if byteSize < 1024 {
+		return fmt.Sprintf("%.3f байт\t", float64(byteSize))
+	}
+	if byteSize < 1024*1024 {
+		return fmt.Sprintf("%.3f килобайт\t", float64(byteSize)/1024)
+	} else {
+		return fmt.Sprintf("%.3f мегабайт\t", float64(byteSize)/(1024*1024))
+	}
 }
