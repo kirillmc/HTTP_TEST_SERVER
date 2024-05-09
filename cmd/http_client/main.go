@@ -3,10 +3,10 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/kirillmc/data_filler/pkg/filler"
@@ -30,11 +30,11 @@ func getNProgramsClient(n int64) (model.TrainPrograms, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return model.TrainPrograms{}, err
+		return model.TrainPrograms{}, fmt.Errorf("server code: %v", http.StatusNotFound)
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return model.TrainPrograms{}, errors.New("failed to get user")
+		return model.TrainPrograms{}, fmt.Errorf("server code is not: %v, (code is: %v)", http.StatusOK, resp.StatusCode)
 	}
 
 	var programs model.TrainPrograms
@@ -59,14 +59,12 @@ func postNProgramsClient(programs fil.TrainPrograms) (model.Response, float64, e
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
-
-		return model.Response{Message: err.Error()}, float64(len(dataToSend)), err
-
+		return model.Response{Message: fmt.Sprintf("server code: %v", http.StatusNotFound)}, float64(len(dataToSend)), err
 	}
 
 	if resp.StatusCode != http.StatusOK {
 
-		return model.Response{Message: err.Error()}, float64(len(dataToSend)), err
+		return model.Response{Message: fmt.Sprintf("server code is not: %v, (code is: %v)", http.StatusOK, resp.StatusCode)}, float64(len(dataToSend)), err
 
 	}
 
@@ -99,12 +97,12 @@ func updateNProgramsClient(programs fil.TrainPrograms) (model.Response, float64,
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return model.Response{Message: err.Error()}, float64(len(dataToUpdate)), err
+		return model.Response{Message: fmt.Sprintf("server code: %v", http.StatusNotFound)}, float64(len(dataToUpdate)), err
 
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return model.Response{Message: err.Error()}, float64(len(dataToUpdate)), err
+		return model.Response{Message: fmt.Sprintf("server code is not: %v, (code is: %v)", http.StatusOK, resp.StatusCode)}, float64(len(dataToUpdate)), err
 
 	}
 
@@ -132,11 +130,11 @@ func deleteNProgramsClient(n int64) (model.Response, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
-		return model.Response{Message: err.Error()}, err
+		return model.Response{Message: fmt.Sprintf("server code: %v", http.StatusNotFound)}, err
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return model.Response{Message: err.Error()}, err
+		return model.Response{Message: fmt.Sprintf("server code is not: %v, (code is: %v)", http.StatusOK, resp.StatusCode)}, err
 	}
 
 	var mess model.Response
@@ -148,15 +146,123 @@ func deleteNProgramsClient(n int64) (model.Response, error) {
 }
 
 func main() {
-	//var trainPorgrams, wq = oneToPost(1)
-	//log.Printf("POST: %v\t%v", trainPorgrams, wq)
+
+	launchThirdTestWithNProgramsAndWg(25, 101)
+}
+
+func launchFirstTestForm0ToN(n int64) {
+	fmt.Printf("SIZE - IS ONLY SIZE OF DATA(body)")
+
+	fmt.Printf("\nMETHOD GET from 0 to %d:\n", n)
+	methodFrom0ToNWithAVG(n, oneToGet)
+
+	fmt.Printf("\nMETHOD POST from 0 to %d:\n", n)
+	methodFrom0ToNWithAVG(n, oneToPost)
+
+	fmt.Printf("\nMETHOD UPDATE from 0 to %d:\n", n)
+	methodFrom0ToNWithAVG(n, oneToUpdate)
+
+	fmt.Printf("\nMETHOD DELETE from 0 to %d:\n", n)
+	methodFrom0ToNWithAVG(n, oneToDelete)
+}
+
+func launchSecondTestWithNProgramsAndWg(n int64, wgGroupCount int64) {
+	fmt.Printf("SIZE - IS ONLY SIZE OF DATA(body)[%d]", n)
+
+	fmt.Printf("\nMETHOD GET from 1 to %d USERS:\n", wgGroupCount)
+	methodWithConstAVGOfNGproutines(n, wgGroupCount, oneToGet)
+
+	fmt.Printf("\nMETHOD POST from 0 to %d USERS:\n", wgGroupCount)
+	methodWithConstAVGOfNGproutines(n, wgGroupCount, oneToPost)
+
+	fmt.Printf("\nMETHOD UPDATE from 0 to %d USERS:\n", wgGroupCount)
+	methodWithConstAVGOfNGproutines(n, wgGroupCount, oneToUpdate)
+
+	fmt.Printf("\nMETHOD DELETE from 0 to %d USERS:\n", wgGroupCount)
+	methodWithConstAVGOfNGproutines(n, wgGroupCount, oneToDelete)
+}
+
+func launchThirdTestWithNProgramsAndWg(n int64, wgGroupCount int64) {
+	//fmt.Printf("SIZE - IS ONLY SIZE OF DATA(body) [USERS: %d]", wgGroupCount)
 	//
-	//getMethodFrom0ToNWithAVG(n)
-	methodFrom0ToNWithAVG(505, oneToDelete)
-	//	printAvgOfConst(1, oneToGet)
+	//fmt.Printf("\nMETHOD GET from 1 to %d COUNTS:\n", n)
+	//methodFrom0ToNWithAVGOfNGproutines(n, wgGroupCount, oneToGet)
+	//
+	//fmt.Printf("\nMETHOD POST from 0 to %d COUNTS:\n", n)
+	//methodFrom0ToNWithAVGOfNGproutines(n, wgGroupCount, oneToPost)
+	//
+	//fmt.Printf("\nMETHOD UPDATE from 0 to %d COUNTS:\n", n)
+	//methodFrom0ToNWithAVGOfNGproutines(n, wgGroupCount, oneToUpdate)
+
+	fmt.Printf("\nMETHOD DELETE from 0 to %d COUNTS:\n", n)
+	methodFrom0ToNWithAVGOfNGproutines(n, wgGroupCount, oneToDelete)
+}
+
+// Будет увеличиваться объем данных от 0 до n, статично горутин wgGroupCount
+func methodFrom0ToNWithAVGOfNGproutines(n int64, wgGroupCount int64, fun func(int64) (float64, float64)) {
+	log.Printf("USERS;\tCOUNT;\tTIME(nanoS);\tSIZE(byte);\n")
+	for i := int64(0); i <= n; i++ {
+		printAvgOfGoroutines(i, wgGroupCount, fun)
+	}
+}
+
+// Будет увеличиваться количетсово горутин от 0 до wgGroupCount, статично объем данных n
+func methodWithConstAVGOfNGproutines(n int64, wgGroupCount int64, fun func(int64) (float64, float64)) {
+	log.Printf("USERS;\tCOUNT;\tTIME(nanoS);\tSIZE(byte);\n")
+	if wgGroupCount <= 0 {
+		wgGroupCount = 1
+	}
+	for i := int64(1); i <= wgGroupCount; i++ {
+		printAvgOfGoroutines(n, i, fun)
+	}
+}
+
+func printAvgOfGoroutines(n int64, wgGroupCount int64, fun func(int64) (float64, float64)) {
+	var durOfSize []float64
+	var wg sync.WaitGroup
+	wg.Add(int(wgGroupCount))
+	// Создаем канал для передачи результатов из горутин
+	resultСh := make(chan float64, wgGroupCount)
+	sizeСhn := make(chan float64, wgGroupCount)
+
+	// Создаем мьютекс для безопасного доступа к срезу result
+	var mu sync.Mutex
+
+	// Используем цикл для запуска горутин
+	for i := int64(1); i <= wgGroupCount; i++ {
+		go func(n int64) {
+			defer wg.Done()
+			dur, size := fun(n)
+			resultСh <- dur
+			sizeСhn <- size
+		}(n)
+	}
+
+	wg.Wait()
+	close(resultСh)
+	close(sizeСhn)
+	var size float64
+	for res := range resultСh {
+		mu.Lock()
+		size = <-sizeСhn
+		durOfSize = append(durOfSize, res)
+		mu.Unlock()
+	}
+
+	log.Printf("\t%d;\t%d;\t%f;\t%f;\n", wgGroupCount, n, getAvgFromSlice(wgGroupCount, durOfSize), size)
+}
+
+func getAvgFromSlice(n int64, durOfSize []float64) float64 {
+	var avgTime float64
+	for i := int64(0); i < n; i++ {
+		avgTime += durOfSize[i]
+	}
+
+	return avgTime / float64(n)
 }
 
 func methodFrom0ToNWithAVG(n int64, fun func(int64) (float64, float64)) {
+	log.Printf("\tCOUNT;\tTIME(nanoS);\tSIZE(byte);\n")
 	for i := int64(0); i <= n; i++ {
 		printAvgOfConst(i, fun)
 	}
